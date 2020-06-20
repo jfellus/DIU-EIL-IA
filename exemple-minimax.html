@@ -1,0 +1,276 @@
+<html>
+<head>
+  <style>
+
+table{ position:fixed; top:0; left:0; border-collapse: collapse; width:100vh; height:100vh;}
+td { border: 1px solid black; }
+
+span.A {
+  position:fixed;
+  background: white;
+  border:3px solid black;
+  border-radius:100%;
+  box-sizing: border-box;
+}
+span.B {
+  position:fixed;
+  border-radius:100%;
+  background: black;
+  box-sizing: border-box;
+}
+
+circle { fill:white; }
+circle.jaune { fill:yellow; transition:transform .6s;}
+circle.rouge { fill:red; transition:transform .6s; }
+  </style>
+  <script src="js/jquery.js"></script>
+  <script>
+
+// Utils
+
+function create_world() {
+  for(var i=0; i<H; i++) {
+    for(var j=0; j<W; j++) {
+      var c = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+      $(c).attr({
+        cx:(j+0.5)*svg.width()/W,
+        cy:(i+0.5)*svg.height()/H,
+        r:svg.width()/W/2-5})
+      if(i==0) (function(j) {$(c).click(()=>{
+        if(you) play(0,j)
+      })})(j)
+      svg.append(c)
+    }
+  }
+}
+
+
+// Graph
+
+W = 10
+H = 8
+
+you = true;
+end = false;
+function win(player) {
+  end = true;
+  setTimeout(()=> {
+    $("#ok").html(player ? "IA WINS !" : "YOU WIN !")
+    $("#ok").css("background", player ? "red" : "green")
+    $("#ok").show()
+  },1000)
+}
+
+world = new Array(W).fill(-1).map((x) => new Array(H).fill(-1))
+height = new Array(W).fill(0)
+you = true
+
+function play(player, i) {
+  if(end) return;
+  var h = height[i]
+  if(h>=H) return
+  height[i]++;
+  world[i][h] = player
+  var c = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+  $(c).addClass(player ? "rouge" : "jaune")
+  $(c).attr({
+    cx:(i+0.5)*svg.width()/W,
+    cy:0,
+    r:svg.width()/W/2-5})
+    svg.append(c)
+  hh = ((H-h-1)+0.5)*svg.height()/H
+  $(c).css("transform", "translate(0px, "+hh+ "px)")
+  if(test_win_at(world, player, i, h)) return win(player)
+  you = !you
+  if(!you) setTimeout(ia,100)
+}
+
+PUIS = 4
+function test_win_at(world, player, i, j) {
+  if(world[i][j]!=player) return false
+  var nh = 1;
+  for(var x=i-1; x>=0 && world[x][j]==player; x--) nh++
+  for(var x=i+1; x<W && world[x][j]==player; x++) nh++
+  if(nh >= PUIS) return true
+  var nv = 1;
+  for(var y=j-1; y>=0 && world[i][y]==player; y--) nv++
+  for(var y=j+1; y<H && world[i][y]==player; y++) nv++
+  if(nv >= PUIS) return true
+  var n = 1;
+  for(var d=1; j+d<H && i-d>=0 && world[i-d][j+d]==player; d++) n++;
+  for(var d=1; j-d>=0 && i+d<W && world[i+d][j-d]==player; d++) n++;
+  if(n >= PUIS) return true
+  n = 1;
+  for(var d=1; j-d>=0 && i-d>=0 && world[i-d][j-d]==player; d++) n++;
+  for(var d=1; j+d<H && i+d<W && world[i+d][j+d]==player; d++) n++;
+  if(n >= PUIS) return true
+  return false
+}
+
+function heuristic_at(world, player, i, j) {
+  if(world[i][j]!=player) return 0
+  var nh = 1;
+  for(var x=i-1; x>=0 && world[x][j]==player; x--) nh++
+  for(var x=i+1; x<W && world[x][j]==player; x++) nh++
+  var nv = 1;
+  for(var y=j-1; y>=0 && world[i][y]==player; y--) nv++
+  for(var y=j+1; y<H && world[i][y]==player; y++) nv++
+  var n = 1;
+  for(var d=1; j+d<H && i-d>=0 && world[i-d][j+d]==player; d++) n++;
+  for(var d=1; j-d>=0 && i+d<W && world[i+d][j-d]==player; d++) n++;
+  if(n >= PUIS) return true
+  for(var d=1; j-d>=0 && i-d>=0 && world[i-d][j-d]==player; d++) n++;
+  for(var d=1; j+d<H && i+d<W && world[i+d][j+d]==player; d++) n++;
+  return (nh+nv+n)/2
+}
+
+function test_win(state, player) {
+  for(var i=0; i<W; i++) {
+    for(var j=0; j<state.height[i]; j++) {
+      if(test_win_at(state.world, player, i,j)) return true
+    }
+  }
+  return false
+}
+
+algo = 'minimax'
+function ia() {
+  while(!you && !end) {
+    DEPTH = parseInt($("#depth").val())
+    nbev = 0
+    var i = (algo=='minimax') ?
+      minimax(copy_state(world, height), DEPTH, 1) :
+      alphabeta(copy_state(world, height), DEPTH, -Infinity, Infinity, 1)
+    console.log("Evaluated " + nbev + " states");
+    play(1, i)
+  }
+}
+
+// Heuristic
+
+function h(state) {
+  var s=0,n=0;
+  for(var i=0; i<W; i++) {
+    for(var j=0; j<state.height[i]; j++) {
+      var v = heuristic_at(state.world, 1, i,j) - heuristic_at(state.world, 0, i,j)
+      if(v!=0) { s+=v; n++}
+    }
+  }
+  return s/n
+}
+
+// Minimax algorithm
+
+function dostep(state, i, player) {
+  var newstate = copy_state(state.world, state.height)
+  newstate.world[i][newstate.height[i]] = player
+  newstate.height[i]++
+  return newstate
+}
+
+function minimax(state, depth, player) {
+  nbev++
+  if(depth === 0) return h(state)
+  if(test_win(state, 1)) return 10
+  else if(test_win(state, 0)) return -10
+  if(player) { // IA (max)
+    var v = -Infinity
+    var best_move = -1
+    for(var i=0; i<W; i++) {
+      if(state.height[i]>=H) continue;
+      var newv = minimax(dostep(state, i, player), depth-1, 1-player)
+      if(newv >= v) {
+        v = newv;
+        best_move = i
+      }
+    }
+    return depth == DEPTH ? best_move : v
+  } else { // Player (min)
+    var v = Infinity
+    for(var i=0; i<W; i++) {
+        if(state.height[i]>=H) continue;
+        var newv = minimax(dostep(state, i, player), depth-1, 1-player)
+        if(newv <= v) v = newv
+    }
+    return v
+  }
+}
+
+function alphabeta(state, depth, alpha, beta, player) {
+  if(depth === 0) return h(state)
+  if(test_win(state, 1)) return 10
+  else if(test_win(state, 0)) return -10
+  if(player) { // IA (max)
+    var v = -Infinity
+    var best_move = -1
+    for(var i=0; i<W; i++) {
+      if(state.height[i]>=H) continue;
+      if(alpha >= beta) break;
+      var newv = alphabeta(dostep(state, i, player), alpha, beta, depth-1, 1-player)
+      if(newv >= v) {
+        v = newv
+        if(v >= alpha) alpha = v
+        best_move = i
+      }
+    }
+    return depth == DEPTH ? best_move : v
+  } else {
+    var v = Infinity
+    for(var i=0; i<W; i++) {
+      if(state.height[i]>=H) continue;
+      if(alpha >= beta) break;
+      var newstate = copy_state(state)
+      var newv = alphabeta(dostep(state, i, player), alpha, beta, depth-1, 1-player)
+      if(newv <= v) v = newv
+      if(v <= beta) beta = v
+    }
+    return v
+  }
+}
+
+function copy_state(world, height) {
+  return {
+    world:world.map((x) => x.map((y) => y)),
+    height:height.map((x) => x)
+  }
+}
+
+// Main loop
+
+state = []
+
+
+function domove(state, player, _move) {
+}
+
+
+/////////////
+
+mousedown = false
+$(() => {
+  svg = $("svg")
+  create_world()
+})
+
+</script>
+</head>
+<body>
+  <div style="float:right">
+  <button onclick="location.reload()">RESTART</button><br>
+  <button onclick="algo = 'alphabeta';">PLAY ALPHA-BETA</button><br>
+  <button onclick="algo = 'minimax';">PLAY MINIMAX</button><br>
+  &nbsp; depth:<input type="range" min="1" max="10" value="6" id="depth"></input><br>
+
+  <svg width=800px height=600px style="background:black"></svg>
+
+  <div id="ok" style="display:none;    color: white;
+    font-family: sans-serif;
+    font-size: 202%;
+    margin: 100px;
+    position: fixed;
+    top:0;left:0;
+    padding: 10px;
+    box-shadow: 0px 1px 5px black;"></div>
+  </div>
+  </body>
+</html>
